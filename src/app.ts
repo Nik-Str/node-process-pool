@@ -8,7 +8,7 @@ import { ChildMsg } from './types';
 // npm run dev (port) (nr of processes)
 
 // curl -X POST -H "Content-Type: application/json" \
-//   -d '{"name": "linuxize", "email": "linuxize@example.com"}' \
+//   -d '{"name": 10}' \
 //   http://localhost:8080/
 
 const port = process.argv[2];
