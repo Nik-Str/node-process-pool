@@ -45,6 +45,16 @@ export default class ProcessPool {
         worker.kill();
         reject(err);
       });
+
+      worker.once('exit', async (code) => {
+        if (code === 0) {
+          console.log(`Childpprocess ${worker.pid} exited after error`);
+          this.active = this.active.filter((w) => w !== worker);
+          this.pool = this.pool.filter((w) => w !== worker);
+          const newWorker = this.start();
+          await Promise.resolve(newWorker);
+        }
+      });
     });
   }
 
@@ -56,20 +66,18 @@ export default class ProcessPool {
         this.active.push(worker);
         return resolve(worker);
       }
+      console.log('No childprocess avaible, request in queue');
       return this.waiting.push({ resolve, reject });
     });
   }
 
   public release(worker: ChildProcess) {
     if (this.waiting.length > 0) {
+      console.log(`Queue not empty, ${worker.pid} require next task`);
       const { resolve } = this.waiting.shift() as IPromise;
       return resolve(worker);
     }
     console.log(`Process released: ${worker.pid}`);
-    this.reset(worker);
-  }
-
-  private reset(worker: Fork) {
     this.active = this.active.filter((w) => w !== worker);
     this.pool.push(worker);
   }

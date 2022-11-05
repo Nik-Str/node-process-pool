@@ -26,10 +26,11 @@ const handler = (worker: ChildProcess, data: number) => new Promise((resolve, re
   const onMessage = (msg: ChildMsg) => {
     if (msg.event === 'end') {
       worker.removeListener('message', onMessage);
-      pool.release(worker);
       resolve(msg.data);
+      return pool.release(worker);
     }
     reject(msg.error);
+    // Processa om data ? eller bara avsluta req
   };
   worker.on('message', onMessage);
   worker.send(data);
