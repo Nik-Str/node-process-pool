@@ -7,3 +7,9 @@ export interface IPromise {
   reject: (reason?: any) => void;
 }
 export type Fork = ChildProcess | undefined;
+
+export type ParentMsg = {
+  test: number;
+  startInterval: number;
+  endInterval: number;
+};
