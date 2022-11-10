@@ -23,7 +23,7 @@ export default class ProcessPool {
     }
 
     try {
-      return await Promise.all(pool).then(() => console.log('Pool is active'));
+      return await Promise.all(pool).then(() => console.log('Pool is active!'));
     } catch (err: unknown) {
       console.error(err);
     }

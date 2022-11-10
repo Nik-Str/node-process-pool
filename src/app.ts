@@ -14,7 +14,7 @@ import { ChildMsg, ParentMsg } from './types';
 
 const port = Number(process.argv[2]);
 const poolMax = Number(process.argv[3] ? process.argv[3] : os.cpus().length / 2);
-const workerFile = join(__dirname, 'worker.ts');
+const workerFile = join(__dirname, 'childProcess.ts');
 const pool = new ProcessPool(workerFile, poolMax);
 pool.initWorkers();
 
@@ -101,6 +101,7 @@ http
 
     req.on('end', () => {
       const { test } = JSON.parse(body);
+      console.log(test);
       if (typeof test !== 'string') return invalidRequest(res);
       console.log(`Request body contains ${test}`);
       initializer(test, res);
@@ -112,3 +113,8 @@ http
 // Fundera hur vi kan avbryta övriga workers om en match hittas i en utav dem
 
 // på en mmatch loopa igenom alla workers och skicak ett meddelande. I Worker ska vara meddelande innehåell en type variable som ska kontrolleras. om det är exit typ ska process göra exit.
+// Bygg så varje process har en worker som jobbar motpools i loopen
+
+// Gör så process kör exit på match
+// Skicka exit kod 123 och gör om pool till extend eventemitter. emit event
+// i handler lyssna på denna emit, och avsluta på den (promise.all kommer då resolva)
