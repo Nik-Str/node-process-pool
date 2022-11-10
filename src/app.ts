@@ -2,17 +2,18 @@ import { ChildProcess } from 'child_process';
 import http, { IncomingMessage, ServerResponse } from 'http';
 import { join } from 'path';
 import { WritableStream } from 'stream/web';
+import os from 'os';
 import ProcessPool from './processPool';
 import { ChildMsg, ParentMsg } from './types';
 
 // npm run dev (port) (nr of processes)
 
 // curl -X POST -H "Content-Type: application/json" \
-//   -d '{"test": 10}' \
+//   -d "{"test": "10"}" \
 //   http://localhost:8080/
 
 const port = Number(process.argv[2]);
-const poolMax = Number(process.argv[3]);
+const poolMax = Number(process.argv[3] ? process.argv[3] : os.cpus().length / 2);
 const workerFile = join(__dirname, 'worker.ts');
 const pool = new ProcessPool(workerFile, poolMax);
 pool.initWorkers();
@@ -36,13 +37,19 @@ const handler = (worker: ChildProcess, parentMsg: ParentMsg) => new Promise((res
   worker.send(parentMsg);
 });
 
-const initializer = async (test: number, res: ServerResponse) => {
-  const nrOfDigits = test.toString().length;
+const initializer = async (test: string, res: ServerResponse) => {
+  const start = Date.now();
+
+  const nrOfDigits = test.length;
   if (nrOfDigits > 12) return invalidRequest(res);
-  const nrOfCombos = 9 ** nrOfDigits; // Stämmer inte, lär beräknas annorlunda, om inte föredelningen bör ske på annat sätt [0, 0, 0]
-  // Skriv om logiken för att föredela och beräkna de olika kombinationerna baserat på antal siffror som skickas in
+  let lengthOfCombos = '';
+  for (let i = 0; i < nrOfDigits; i++) {
+    lengthOfCombos += '9';
+  }
+  const nrOfCombos = Number(lengthOfCombos);
 
   try {
+    // Hämta workers i handler istället så att det går att queue uppdrag
     const workerPromises = [];
     for (let i = 1; i <= poolMax; i++) {
       workerPromises.push(pool.acquire());
@@ -50,16 +57,32 @@ const initializer = async (test: number, res: ServerResponse) => {
     const workers = (await Promise.all(workerPromises)) as ChildProcess[];
 
     const handlerPromises = [];
-    for (let i = 1; i <= poolMax; i++) {
-      const startInterval = i === 1 ? 0 : ((nrOfCombos - 1) / poolMax) * (i - 1); // Stämmer inte
-      let endInterval = ((nrOfCombos - 1) / poolMax) * i; // Stämmer inte
-      if (i === poolMax) endInterval++; // Stämmer inte
-      handlerPromises.push(handler(workers[i - 1], { test, startInterval, endInterval }));
+    const isDivisible = nrOfCombos % poolMax === 0;
+    for (let i = 0; i < poolMax; i++) {
+      let startInterval;
+      let endInterval;
+
+      if (!isDivisible) {
+        startInterval = i === 0 ? 0 : ((nrOfCombos - 1) / poolMax) * i;
+        endInterval = ((nrOfCombos - 1) / poolMax) * (i + 1);
+        if (i + 1 === poolMax) endInterval++;
+      } else {
+        startInterval = i === 0 ? 0 : (nrOfCombos / poolMax) * i;
+        endInterval = (nrOfCombos / poolMax) * (i + 1);
+      }
+
+      handlerPromises.push(
+        handler(workers[i], {
+          test,
+          startInterval,
+          endInterval,
+        })
+      );
     }
     // Skulle Promiserace fungera?
     const result = await Promise.all(handlerPromises).then((childRes) => childRes.filter((a) => a !== null)[0]);
     console.log(`Respond with result: ${result}`);
-    res.end(JSON.stringify({ result }));
+    res.end(JSON.stringify({ result, time: Date.now() - start }));
   } catch (error: unknown) {
     res.end(JSON.stringify({ error }));
   }
@@ -78,6 +101,7 @@ http
 
     req.on('end', () => {
       const { test } = JSON.parse(body);
+      if (typeof test !== 'string') return invalidRequest(res);
       console.log(`Request body contains ${test}`);
       initializer(test, res);
     });
@@ -85,3 +109,6 @@ http
   .listen(port, () => console.log(`Server is listening on port: ${port}`));
 
 // Testa hur lång tid det tar för en algo att hitta en matchning, så vi borde skicka tiden i svaret tillbaka, det är de som är intressant här
+// Fundera hur vi kan avbryta övriga workers om en match hittas i en utav dem
+
+// på en mmatch loopa igenom alla workers och skicak ett meddelande. I Worker ska vara meddelande innehåell en type variable som ska kontrolleras. om det är exit typ ska process göra exit.

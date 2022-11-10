@@ -9,7 +9,7 @@ export interface IPromise {
 export type Fork = ChildProcess | undefined;
 
 export type ParentMsg = {
-  test: number;
+  test: string;
   startInterval: number;
   endInterval: number;
 };
